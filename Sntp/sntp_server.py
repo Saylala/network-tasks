@@ -2,13 +2,16 @@ import socket
 import time
 import select
 import struct
+import threading
 import argparse
+
 
 SECONDS_OF_70_YEARS = 2208988800
 PACKET_FORMAT = '!4B11I'
+BUFFER_SIZE = 1024
 
 
-def build_package(wrong_time, reference_seconds, reference_fraction):
+def build_package(time_with_delta, reference_seconds, reference_fraction):
     leap_indicator = 0
     ntp_version = 4
     mode = 4
@@ -21,12 +24,12 @@ def build_package(wrong_time, reference_seconds, reference_fraction):
     root_dispersion_i = 2804
     reference_id_i = 0
 
-    origin_seconds = 0
-    origin_fraction = 0
-    receive_seconds = wrong_time
-    receive_fraction = 0
-    transmit_seconds = wrong_time
-    transmit_fraction = 0
+    origin_seconds = reference_seconds
+    origin_fraction = reference_fraction
+    receive_seconds = time_with_delta - 5 # bugs bugs bugs
+    receive_fraction = reference_fraction
+    transmit_seconds = time_with_delta
+    transmit_fraction = reference_fraction
 
     return struct.pack(PACKET_FORMAT, flags_b, stratum_b, polling_interval_b, clock_precision_b,
                        root_delay_i, root_dispersion_i, reference_id_i,
@@ -36,15 +39,22 @@ def build_package(wrong_time, reference_seconds, reference_fraction):
                        transmit_seconds, transmit_fraction)
 
 
-def get_time(delta_seconds):
+def get_time_with_delta(delta_seconds):
     return int(time.time()) + SECONDS_OF_70_YEARS + delta_seconds
 
 
+def handle_request(sock, delta):
+    data, address = sock.recvfrom(BUFFER_SIZE)
+    print(address[0])
+    wrong_time = get_time_with_delta(delta)
+    reference_seconds, reference_fraction = struct.unpack(PACKET_FORMAT, data)[13:15]
+    sock.sendto(build_package(wrong_time, reference_seconds, reference_fraction), address)
+
+
 def start_server(args):
-    port = int(args.port)
-    delta = int(args.d)
+    port = args.port
+    delta = args.d
     timeout = 0.1
-    buffer = 1024
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('127.0.0.1', port))
@@ -53,17 +63,13 @@ def start_server(args):
     while True:
         ready_to_read, _, _ = select.select([sock], [], [], timeout)
         for x in ready_to_read:
-            data, address = x.recvfrom(buffer)
-            print(address)
-            wrong_time = get_time(delta)
-            reference_seconds, reference_fraction = struct.unpack(PACKET_FORMAT, data)[13:14]
-            sock.sendto(build_package(wrong_time, reference_seconds, reference_fraction), address)
+            threading.Thread(target=handle_request, args=(x, delta)).start()
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', nargs='?', default=0)
-    parser.add_argument('-p', '--port', nargs='?', default=123)
+    parser.add_argument('-d', nargs='?', default=0, type=int)
+    parser.add_argument('-p', '--port', nargs='?', default=123, type=int)
     return parser.parse_args()
 
 if __name__ == '__main__':
