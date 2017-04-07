@@ -17,16 +17,16 @@ def build_package(time_with_delta, reference_seconds, reference_fraction):
     mode = 4
     flags_b = (leap_indicator << 6) | (ntp_version << 3) | mode
     stratum_b = 2
-    polling_interval_b = 0
-    clock_precision_b = 250
 
-    root_delay_i = 2 ** 11
-    root_dispersion_i = 2804
+    polling_interval_b = 0
+    clock_precision_b = 0
+    root_delay_i = 0
+    root_dispersion_i = 0
     reference_id_i = 0
 
     origin_seconds = reference_seconds
     origin_fraction = reference_fraction
-    receive_seconds = time_with_delta - 5 # bugs bugs bugs
+    receive_seconds = time_with_delta
     receive_fraction = reference_fraction
     transmit_seconds = time_with_delta
     transmit_fraction = reference_fraction
