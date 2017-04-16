@@ -6,7 +6,6 @@ import threading
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 
-
 SECONDS_OF_70_YEARS = 2208988800
 PACKET_FORMAT = '!4B11I'
 BUFFER_SIZE = 1024
@@ -62,14 +61,11 @@ def start_server(args):
     sock.bind(('127.0.0.1', port))
     print('Server started')
 
-    while True:
-        ready_to_read, _, _ = select.select([sock], [], [], timeout)
-        with ThreadPoolExecutor(max_workers=THREADS_COUNT) as executor:
+    with ThreadPoolExecutor(max_workers=THREADS_COUNT) as executor:
+        while True:
+            ready_to_read, _, _ = select.select([sock], [], [], timeout)
             for x in ready_to_read:
                 executor.submit(handle_request, x, delta)
-            #     threading.Thread(target=handle_request, args=(x, delta)).start()
-            # for port in ports_range:
-            #         executor.submit(try_connect, host, port)
 
 
 def parse_args():
@@ -77,6 +73,7 @@ def parse_args():
     parser.add_argument('-d', nargs='?', default=0, type=int)
     parser.add_argument('-p', '--port', nargs='?', default=123, type=int)
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     arguments = parse_args()
