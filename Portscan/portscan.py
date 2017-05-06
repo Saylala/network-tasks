@@ -3,12 +3,13 @@ import socket
 import struct
 from concurrent.futures import ThreadPoolExecutor
 
-THREADS = 512
+THREADS = 256
 CONNECTION_TIMEOUT = 1
 
 
 def is_http(sock):
-    sock.send(b'OPTIONS * HTTP/1.1\r\n')
+    # sock.send(b'OPTIONS * HTTP/1.1\r\n')
+    sock.send(b'GET TEST HTTP/1.1\r\n\r\n')
     data = sock.recv(1024)
     return data[:4] == b'HTTP' or b'<html>' in data
 
@@ -25,7 +26,7 @@ def is_pop3(sock):
 
 def is_imap(sock):
     data = sock.recv(1024)
-    return data[:3] == b'* OK'
+    return data[:4] == b'* OK'
 
 
 def is_dns(host, port):
@@ -40,7 +41,8 @@ def is_dns(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(bytes(packet), (host, port))
     data, address = sock.recvfrom(1024)
-    return data[:2] == b'\x5c\xfe' and data[2] >> 7 == 1
+    sock.close()
+    return True
 
 
 def is_sntp(host, port):
@@ -49,10 +51,7 @@ def is_sntp(host, port):
     sock.sendto(data.encode(), (host, port))
     data, address = sock.recvfrom(1024)
     sock.close()
-    if len(data) != 48:
-        return False
-    mode = data[0] & 7
-    return mode == 4 or mode == 3
+    return True
 
 
 def detect_protocol_type(host, port, is_tcp_socket=True):
@@ -61,13 +60,19 @@ def detect_protocol_type(host, port, is_tcp_socket=True):
 
     if is_tcp_socket:
         for protocol in protocols_with_tcp:
-            with socket.create_connection((host, port), CONNECTION_TIMEOUT) as sock:
-                if protocols_with_tcp[protocol](sock):
-                    return protocol
+            try:
+                with socket.create_connection((host, port), CONNECTION_TIMEOUT) as sock:
+                    if protocols_with_tcp[protocol](sock):
+                        return protocol
+            except socket.timeout:
+                continue
     else:
         for protocol in protocols_with_udp:
-            if protocols_with_udp[protocol](host, port):
-                return protocol
+            try:
+                if protocols_with_udp[protocol](host, port):
+                    return protocol
+            except socket.timeout:
+                continue
     return ''
 
 
@@ -80,12 +85,15 @@ def scan_tcp(host, port):
 
 
 def scan_udp(host, port):
+    port_type = detect_protocol_type(host, port, is_tcp_socket=False)
+    if port_type != '':
+        print('UDP {} {}'.format(port, port_type))
+        return
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(b'', (host, port))
     try:
         data = sock.recvfrom(1024)
-        port_type = detect_protocol_type(host, port, is_tcp_socket=False)
-        print('UDP {} {}'.format(port, port_type))
+        print('UDP {}'.format(port))
     except:
         pass
     finally:
@@ -110,10 +118,10 @@ def scan_ports(args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("host")
+    parser.add_argument('host')
+    parser.add_argument('-p', '--ports', nargs=2, type=int)
     parser.add_argument('-t', action="store_true")
     parser.add_argument('-u', action="store_true")
-    parser.add_argument('-p', '--ports', nargs=2, type=int)
     return parser.parse_args()
 
 if __name__ == '__main__':
