@@ -30,12 +30,12 @@ def is_imap(sock):
 
 
 def is_dns(host, port):
-    packet = struct.pack("HHHHHH", 12049, 256, 1, 0, 0, 0)
-    split_url = "google.com".split(".")
+    packet = struct.pack(">HHHHHH", 12049, 256, 1, 0, 0, 0)
+    split_url = "www.google.com".split(".")
     for part in split_url:
         packet += struct.pack("B", len(part))
         for byte in bytes(part, encoding='utf-8'):
-            packet += struct.pack("h", byte)
+            packet += struct.pack("b", byte)
     packet += struct.pack("BHH", 0, 1, 1)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
