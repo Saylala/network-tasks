@@ -1,7 +1,9 @@
 import argparse
 import socket
 import struct
+import time
 from concurrent.futures import ThreadPoolExecutor
+
 
 THREADS = 256
 CONNECTION_TIMEOUT = 1
@@ -117,9 +119,17 @@ def scan_udp(host, port):
 
 def scan(scan_func, host, ports_range):
     socket.setdefaulttimeout(CONNECTION_TIMEOUT)
-    with ThreadPoolExecutor(max_workers=THREADS) as executor:
+    futures = []
+    try:
+        executor = ThreadPoolExecutor(max_workers=THREADS)
         for port in ports_range:
-            executor.submit(scan_func, host, port)
+            future = executor.submit(scan_func, host, port)
+            futures.append(future)
+        while True:
+            time.sleep(0.25)
+    except KeyboardInterrupt:
+        for future in futures:
+            future.cancel()
 
 
 def scan_ports(args):
