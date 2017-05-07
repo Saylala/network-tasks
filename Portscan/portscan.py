@@ -29,8 +29,23 @@ def is_imap(sock):
     return data[:4] == b'* OK'
 
 
+def is_tcp_dns(sock):
+    length = 33
+    packet = struct.pack(">HHHHHHH", length, 12345, 256, 1, 0, 0, 0)
+    split_url = "www.google.com".split(".")
+    for part in split_url:
+        packet += struct.pack("B", len(part))
+        for byte in bytes(part, encoding='utf-8'):
+            packet += struct.pack("b", byte)
+    packet += struct.pack("BHH", 0, 1, 1)
+
+    sock.send(bytes(packet))
+    data = sock.recv(1024)
+    return len(data) > 4 and data[2:4] == b'09'
+
+
 def is_dns(host, port):
-    packet = struct.pack(">HHHHHH", 12049, 256, 1, 0, 0, 0)
+    packet = struct.pack(">HHHHHH", 12345, 256, 1, 0, 0, 0)
     split_url = "www.google.com".split(".")
     for part in split_url:
         packet += struct.pack("B", len(part))
@@ -55,7 +70,7 @@ def is_sntp(host, port):
 
 
 def detect_protocol_type(host, port, is_tcp_socket=True):
-    protocols_with_tcp = {'HTTP': is_http, 'SMTP': is_smtp, 'POP3': is_pop3, 'IMAP': is_imap}
+    protocols_with_tcp = {'HTTP': is_http, 'SMTP': is_smtp, 'POP3': is_pop3, 'IMAP': is_imap, 'DNS': is_tcp_dns}
     protocols_with_udp = {'SNTP': is_sntp, 'DNS': is_dns}
 
     if is_tcp_socket:
