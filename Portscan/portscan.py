@@ -1,16 +1,13 @@
 import argparse
 import socket
 import struct
-import time
 from concurrent.futures import ThreadPoolExecutor
 
-
-THREADS = 256
-CONNECTION_TIMEOUT = 1
+THREADS = 512
+CONNECTION_TIMEOUT = 0.5
 
 
 def is_http(sock):
-    # sock.send(b'OPTIONS * HTTP/1.1\r\n')
     sock.send(b'GET TEST HTTP/1.1\r\n\r\n')
     data = sock.recv(1024)
     return data[:4] == b'HTTP' or b'<html>' in data
@@ -31,30 +28,27 @@ def is_imap(sock):
     return data[:4] == b'* OK'
 
 
-def is_tcp_dns(sock):
-    length = 33
-    packet = struct.pack(">HHHHHHH", length, 12345, 256, 1, 0, 0, 0)
-    split_url = "www.google.com".split(".")
+def build_dns_packet():
+    packet = struct.pack('>HHHHHH', 12345, 256, 1, 0, 0, 0)
+    split_url = 'www.google.com'.split('.')
     for part in split_url:
-        packet += struct.pack("B", len(part))
+        packet += struct.pack('B', len(part))
         for byte in bytes(part, encoding='utf-8'):
-            packet += struct.pack("b", byte)
-    packet += struct.pack("BHH", 0, 1, 1)
+            packet += struct.pack('b', byte)
+    packet += struct.pack('BHH', 0, 1, 1)
+    return packet
 
+
+def is_tcp_dns(sock):
+    length = struct.pack('>H', 33)
+    packet = length + build_dns_packet()
     sock.send(bytes(packet))
     data = sock.recv(1024)
     return len(data) > 4 and data[2:4] == b'09'
 
 
 def is_dns(host, port):
-    packet = struct.pack(">HHHHHH", 12345, 256, 1, 0, 0, 0)
-    split_url = "www.google.com".split(".")
-    for part in split_url:
-        packet += struct.pack("B", len(part))
-        for byte in bytes(part, encoding='utf-8'):
-            packet += struct.pack("b", byte)
-    packet += struct.pack("BHH", 0, 1, 1)
-
+    packet = build_dns_packet()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(bytes(packet), (host, port))
     data, address = sock.recvfrom(1024)
@@ -125,11 +119,18 @@ def scan(scan_func, host, ports_range):
         for port in ports_range:
             future = executor.submit(scan_func, host, port)
             futures.append(future)
+
         while True:
-            time.sleep(0.25)
+            finished = True
+            for future in futures:
+                if future.running():
+                    finished = False
+            if finished:
+                break
     except KeyboardInterrupt:
         for future in futures:
             future.cancel()
+        quit()
 
 
 def scan_ports(args):
