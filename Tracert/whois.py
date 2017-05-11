@@ -66,8 +66,9 @@ def receive_all(sock):
 
 
 def get_info_to_find(server):
-    if server in ['lacnic', 'arin']:
-        return Info('NetName', 'OriginAS', 'Country')
+    for pattern in ['lacnic', 'arin']:
+        if pattern in server:
+            return Info('NetName', 'OriginAS', 'Country')
     return Info('netname', 'origin', 'country')
 
 
@@ -84,7 +85,7 @@ def format_info(name, as_value, country):
     if name:
         info += '{0} '.format(name)
     if as_value:
-        info += '{0} '.format(name)
+        info += '{0} '.format(as_value)
     if country:
         info += country
     return info
