@@ -21,7 +21,7 @@ def get_info(address):
 
 def cache_regexes():
     global REGEXES
-    values = ['netname', 'NetName', 'origin', 'OriginAS', 'country', 'Country']
+    values = ['whois', 'netname', 'NetName', 'origin', 'OriginAS', 'country', 'Country']
     pattern = '{}:(.+)'
     REGEXES = dict()
     for value in values:
@@ -29,22 +29,27 @@ def cache_regexes():
 
 
 def find_info(address):
-    servers = ['arin', 'ripe', 'afrinic', 'lacnic', 'apnic']
-    for server in servers:
-        server_response = get_info_from_server(address, server)
-        info = get_info_to_find(server)
-        name = find_pattern(server_response, info.name)
-        if not is_acceptable_response(name, servers):
-            continue
-        as_value = find_pattern(server_response, info.as_value)
-        country = find_pattern(server_response, info.country)
-        return name, as_value, country
-    return None, None, None
+    server = get_correct_server(address)
+    if server is None:
+        return None, None, None
+
+    server_response = get_info_from_server(address, server)
+    info = get_info_to_find(server)
+    name = find_pattern(server_response, info.name)
+    as_value = find_pattern(server_response, info.as_value)
+    country = find_pattern(server_response, info.country)
+    return name, as_value, country
+
+
+def get_correct_server(address):
+    server_response = get_info_from_server(address, 'whois.iana.org')
+    pattern = 'whois'
+    server = find_pattern(server_response, pattern)
+    return server
 
 
 def get_info_from_server(ip, server):
-    address = "whois.{name}.net".format(name=server)
-    with socket.create_connection((address, PORT)) as sock:
+    with socket.create_connection((server, PORT)) as sock:
         sock.settimeout(SOCKET_TIMEOUT)
         sock.sendall((ip + '\r\n').encode())
         return receive_all(sock).decode('utf-8')
@@ -72,13 +77,6 @@ def find_pattern(string, pattern):
     if result is None:
         return result
     return result.groups()[0].strip()
-
-
-def is_acceptable_response(name_response, servers):
-    for server_name in servers:
-        if name_response is None or server_name.upper() in name_response:
-            return False
-    return True
 
 
 def format_info(name, as_value, country):
