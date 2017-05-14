@@ -8,7 +8,7 @@ Info = namedtuple("Info", "name, as_value, country")
 BUFFER_SIZE = 1024
 PORT = 43
 SOCKET_TIMEOUT = 1
-SOCKET_POLLING_PERIOD = 0.25
+SOCKET_POLLING_PERIOD = 1
 REGEXES = None
 
 
@@ -83,9 +83,13 @@ def find_pattern(string, pattern):
 def format_info(name, as_value, country):
     info = ''
     if name:
-        info += '{0} '.format(name)
+        info += name
     if as_value:
-        info += '{0} '.format(as_value)
+        try:
+            number = re.search('\d+$', as_value).group()
+            info += ', {0}'.format(number)
+        except:
+            pass
     if country:
-        info += country
+        info += ', {0}'.format(country)
     return info
