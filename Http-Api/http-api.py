@@ -1,11 +1,12 @@
-import webbrowser
-import urllib.request
-import urllib.parse
+import argparse
 import json
 import os
-import argparse
 import re
-import socket
+import urllib.parse
+import urllib.request
+from http_handler import HTTPServerHandler
+from http.server import HTTPServer
+from webbrowser import open_new
 
 
 def save_pictures(pictures):
@@ -50,26 +51,25 @@ def parse_post_id(url):
 
 
 def get_access_token(request):
-    # TODO : fix this stuff
-    return '8239550dce0caa2ecf17a21a72e757d75e942144fac3e6aa516381e456871ed62e2748ea76d1f932c0d57'
-    # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # sock.bind(('localhost', 456))
-    # sock.listen(1)
-    # webbrowser.open_new_tab(request)
-    # connection, address = sock.accept()
-    #
-    # data = connection.recv(64 * 1024)
-    # print(data)
+    open_new(request)
+
+    address = ('localhost', 456)
+    http_server = HTTPServer(address, HTTPServerHandler)
+
+    http_server.socket.settimeout(40)
+    http_server.handle_request()
+
+    return http_server.access_token
 
 
 def build_auth_request():
     base = 'https://oauth.vk.com/authorize?'
     app_id = 'client_id=6030058'
-    redirect_uri = 'redirect_uri=localhost:456'
+    redirect_uri = 'redirect_uri=http://localhost:456/'
     display = 'display=page'
-    version = 'v=5.21'
-    response_type = 'response_type=token'
-    return '{}{}&{}&{}&{}&{}'.format(base, app_id, redirect_uri, display, version, response_type)
+    version = 'v=5.52'
+    response_type = 'response_type=code'
+    return '{}{}&scope=friends&{}&{}&{}&{}'.format(base, app_id, redirect_uri, display, version, response_type)
 
 
 def main(arguments):
