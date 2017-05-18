@@ -1,67 +1,96 @@
+import select
 import socket
-import time
-from packet_handler import DNSPacket
-from packet_handler import pack_packet
-
-SOCKET_TIMEOUT = 1
-BUFFER_SIZE = 4096
+import sys
+from packet_handler import CacheInstance
+from packet_handler import Packet
+from packet_handler import parse_question
 
 
 class Server:
-    def __init__(self, forwarder, sock):
+    def __init__(self, arguments):
+        self.port = arguments.port
         self.cache = {}
-        self.forwarder = forwarder
-        self.sock = sock
+        self.forwarder = self.get_forwarder(arguments.forwarder)
+        self.sock = self.get_socket(self.port)
+
+        self.socket_timeout = 1
+        self.socket_polling_period = 0.25
+        self.buffer_size = 4096
+
+    @staticmethod
+    def get_forwarder(raw_forwarder):
+        if '127.0.0.1' in raw_forwarder:
+            print('Forwarder ip cannot be 127.0.0.1')
+            sys.exit()
+
+        port = 53
+        chunks = raw_forwarder.split(':')
+        return chunks[0], int(chunks[1]) if len(chunks) > 1 else port
+
+    @staticmethod
+    def get_socket(port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.bind(('127.0.0.1', port))
+        except Exception as e:
+            print('Server start failed. There is something wrong with PORT: {}'.format(port))
+            return sys.exit()
+        return sock
+
+    def serve_forever(self):
+        print('Server started at PORT: {}'.format(self.port))
+        with self.sock:
+            while True:
+                ready_read, _, _ = select.select([self.sock], [], [], self.socket_polling_period)
+                if ready_read:
+                    data, address = self.sock.recvfrom(self.buffer_size)
+                    self.handle_request(data, address)
 
     def handle_request(self, request, client):
-        request_type = ''  # TODO: implement type
-
-        packet = DNSPacket(request)
-        key = packet.query_name
-
-        data = self.search_cache(key, request)
+        packet = Packet(request)
+        data = self.search_cache(packet.query_name, request)
         source = 'cache'
         if data is None:
-            data = self.ask_forwarder(key, request)
+            data = self.ask_forwarder(packet.query_name, request)
             source = 'forwarder'
 
         if data is None:
-            self.print_forwarder_error(client, request_type, request)
+            self.print_forwarder_error(client, packet.query_type, request)
         else:
             self.sock.sendto(data, client)
-            self.print_report(client[0], request_type, request_type, source)
+            self.print_report(client[0], packet.query_type, packet.query_name, source)
 
     def search_cache(self, key, request):
         if key not in self.cache:
             return None
 
         cache_data = self.cache[key]
-        if self.is_obsolete(cache_data):
+        if self.is_expired(cache_data):
             return None
 
-        return pack_packet(cache_data, request)
+        return cache_data.pack(request)
 
     @staticmethod
-    def is_obsolete(cache_data):
-        for records in cache_data:
+    def is_expired(cache_data):
+        for records in cache_data.records:
             for record in records:
-                if not time.time() - record.time <= record.ttl:
+                if record.is_obsolete():
                     return True
         return False
 
     def ask_forwarder(self, key, request):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(SOCKET_TIMEOUT)
+        sock.settimeout(self.socket_timeout)
         with sock:
             try:
                 sock.sendto(request, self.forwarder)
-                data = sock.recv(BUFFER_SIZE)
-                reply = DNSPacket(data)
+                data = sock.recv(self.buffer_size)
+                reply = Packet(data)
             except socket.error:
                 return None
 
-        self.cache[key] = reply.records
-        return reply.pack()
+        self.cache[key] = CacheInstance(reply.records)
+        return data
 
     @staticmethod
     def print_forwarder_error(client, request_type, request):
@@ -69,7 +98,8 @@ class Server:
         print(report.format(client, request_type, request))
 
     @staticmethod
-    def print_report(client, request_type, request, source):
-        report = '{}, {}, {}, {}'.format(client, request_type, request, source)
+    def print_report(client, request_type, name, source):
+        question = parse_question(name)
+        report = '{}, {}, {}, {}'.format(client, request_type, question, source)
         print(report)
 
