@@ -4,7 +4,7 @@ import struct
 from concurrent.futures import ThreadPoolExecutor
 
 THREADS = 512
-CONNECTION_TIMEOUT = 0.5
+CONNECTION_TIMEOUT = 1
 
 
 def is_http(sock):
@@ -14,8 +14,10 @@ def is_http(sock):
 
 
 def is_smtp(sock):
-    data = sock.recv(1024)
-    return data[:3] == b'220'
+    data = sock.recv(16 * 1024)
+    sock.send(b'EHLO Test\r\n')
+    data = sock.recv(16 * 1024)
+    return data[:3] == b'220' or data[:3] == b'250'
 
 
 def is_pop3(sock):
