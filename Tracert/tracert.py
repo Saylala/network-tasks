@@ -60,18 +60,16 @@ def get_destination_by_address(address):
         destination = socket.gethostbyname(address)
         return destination
     except socket.gaierror:
-        try:
-            destination = socket.gethostbyaddr(address)
-            return destination
-        except socket.gaierror:
-            print("{} is invalid".format(str(address)))
-            return None
+        destination = socket.gethostbyaddr(address)
+        return destination
 
 
 def start_tracing(arguments):
     for address in arguments.addresses:
-        destination = get_destination_by_address(address)
-        if destination is None:
+        try:
+            destination = get_destination_by_address(address)
+        except socket.gaierror:
+            print("{} is invalid".format(str(address)))
             continue
         for report in trace_address(socket.gethostbyname(address)):
             print_report(*report)
@@ -89,3 +87,5 @@ if __name__ == "__main__":
         start_tracing(args)
     except OSError:
         print('Application need administrator rights')
+    except KeyboardInterrupt:
+        pass

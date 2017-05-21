@@ -33,7 +33,11 @@ def find_info(address):
     if server is None:
         return None, None, None
 
-    server_response = get_info_from_server(address, server)
+    try:
+        server_response = get_info_from_server(address, server)
+    except UnicodeDecodeError:
+        return None, None, None
+
     info = get_info_to_find(server)
     name = find_pattern(server_response, info.name)
     as_value = find_pattern(server_response, info.as_value)
@@ -82,6 +86,8 @@ def find_pattern(string, pattern):
 
 def format_info(name, as_value, country):
     info = ''
+    if [name, as_value, country].count(None) == 3:
+        return ''
     if name:
         info += name
     if as_value:
@@ -92,4 +98,4 @@ def format_info(name, as_value, country):
             pass
     if country:
         info += ', {0}'.format(country)
-    return info
+    return info + '\r\n'
