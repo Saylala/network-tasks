@@ -44,12 +44,16 @@ class Client:
         timeout = 3
         socket.setdefaulttimeout(timeout)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if self.ssl:
-            self.socket = ssl.wrap_socket(self.socket)
         self.socket.connect((server, port))
+        if self.ssl:
+            self.greet()
+            self.send('STARTTLS\r\n')
+            self.receive()
+            self.socket = ssl.wrap_socket(self.socket)
 
     def greet(self):
         self.send('EHLO Test\r\n')
+        time.sleep(0.5)
         self.receive()
 
     def send(self, message, base=False, show=True):
@@ -65,11 +69,13 @@ class Client:
         message = self.socket.recv(self.buffer_size).decode()
         self.check_response(message)
         if self.verbose:
-            print(message)
+            print("Server response: {}".format(message))
         time.sleep(0.1)
 
     @staticmethod
     def check_response(message):
+        if len(message) < 3:
+            return True
         code = message[:3]
         if code[0] != '2' and code[0] != '3':
             print('Error: {}'.format(message))
@@ -91,11 +97,11 @@ class Client:
         self.receive()
 
     def set_sender(self, email):
-        self.send('MAIL FROM: {0}\r\n'.format(email))
+        self.send('MAIL FROM: <{0}>\r\n'.format(email))
         self.receive()
 
     def set_receiver(self, email):
-        self.send('RCPT TO: {0}\r\n'.format(email))
+        self.send('RCPT TO: <{0}>\r\n'.format(email))
         self.receive()
 
     def send_message(self, sender, receiver, subject, files):
