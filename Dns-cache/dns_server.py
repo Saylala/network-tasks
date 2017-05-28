@@ -19,10 +19,6 @@ class Server:
 
     @staticmethod
     def get_forwarder(raw_forwarder):
-        if '127.0.0.1' in raw_forwarder:
-            print('Forwarder ip cannot be 127.0.0.1')
-            sys.exit()
-
         port = 53
         chunks = raw_forwarder.split(':')
         return chunks[0], int(chunks[1]) if len(chunks) > 1 else port
@@ -31,7 +27,7 @@ class Server:
     def get_socket(port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            sock.bind(('127.0.0.1', port))
+            sock.bind(('', port))
         except Exception as e:
             print('Server start failed. There is something wrong with PORT: {}'.format(port))
             return sys.exit()
@@ -55,7 +51,7 @@ class Server:
             source = 'forwarder'
 
         if data is None:
-            self.print_forwarder_error(client, packet.query_type, request)
+            self.print_forwarder_error(client, packet.query_type, packet.query_name)
         else:
             self.sock.sendto(data, client)
             self.print_report(client[0], packet.query_type, packet.query_name, source)
@@ -93,9 +89,10 @@ class Server:
         return data
 
     @staticmethod
-    def print_forwarder_error(client, request_type, request):
+    def print_forwarder_error(client, request_type, name):
+        question = parse_question(name)
         report = 'Forwarder does not respond. Can not resolve {}, {}, {}'
-        print(report.format(client, request_type, request))
+        print(report.format(client, request_type, question))
 
     @staticmethod
     def print_report(client, request_type, name, source):
