@@ -31,6 +31,8 @@ class Record:
         records = []
         for i in range(count):
             try:
+                if len(parts[offset + i]) == 0:
+                    continue
                 records.append(Record(b'\xc0\x0c' + parts[offset + i]))
             except IndexError:
                 break
@@ -63,7 +65,7 @@ class Packet:
         return struct.unpack(str(position) + 's', name)[0]
 
     def get_query_type(self):
-        position = 12 + len(self.query_name) + 3
+        position = 12 + len(self.query_name) + 1
         raw_type = self.data[position]
         return self._query_types[raw_type]
 
