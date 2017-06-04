@@ -2,20 +2,31 @@ import argparse
 import json
 import os
 import re
-import urllib.parse
-import urllib.request
-from http_handler import HTTPServerHandler
-from http.server import HTTPServer
-from webbrowser import open_new
+from urllib.request import urlretrieve
+from http_handler import get_access_token
+from http_handler import get_response
 
 
-def save_pictures(pictures):
+def print_progress_bar(iteration, total):
+    length = 50
+    fill = '#'
+    prefix = 'Progress'
+    percent = '{0:.1f}'.format(100 * (iteration / float(total)))
+    current_length = int(length * iteration // total)
+    bar = fill * current_length + '-' * (length - current_length)
+    print('\r%s |%s| %s%%' % (prefix, bar, percent), end='', flush=True)
+
+
+def save_pictures(pictures, directory):
     for picture in pictures:
         filename = picture.split('/')[-1]
-        directory = 'Images'
         if not os.path.exists(directory):
-            os.makedirs(directory)
-        urllib.request.urlretrieve(picture, '{}/{}'.format(directory, filename))
+            try:
+                os.makedirs(directory)
+            except Exception as e:
+                print('Cannot create folder {}'.format(directory))
+        urlretrieve(picture, '{}/{}'.format(directory, filename))
+        yield ''
 
 
 def get_pictures_paths(picture_params):
@@ -35,14 +46,8 @@ def get_pictures(json_data):
     return pictures
 
 
-def build_request(post_id, access_token):
-    method_name = 'wall.getById'
-    parameters = 'posts={}'.format(post_id)
-    return 'https://api.vk.com/method/{}?{}&{}'.format(method_name, parameters, access_token)
-
-
 def parse_post_id(url):
-    pattern = 'w=wall(-?[0-9]+_[0-9]+)'
+    pattern = 'wall(-?[0-9]+_[0-9]+)'
     regex = re.compile(pattern)
     result = regex.search(url)
     if result is None:
@@ -50,45 +55,30 @@ def parse_post_id(url):
     return result.groups()[0]
 
 
-def get_access_token(request):
-    open_new(request)
-
-    address = ('localhost', 456)
-    http_server = HTTPServer(address, HTTPServerHandler)
-
-    http_server.socket.settimeout(40)
-    http_server.handle_request()
-
-    return http_server.access_token
-
-
-def build_auth_request():
-    base = 'https://oauth.vk.com/authorize?'
-    app_id = 'client_id=6030058'
-    redirect_uri = 'redirect_uri=http://localhost:456/'
-    display = 'display=page'
-    version = 'v=5.52'
-    response_type = 'response_type=code'
-    return '{}{}&scope=friends&{}&{}&{}&{}'.format(base, app_id, redirect_uri, display, version, response_type)
-
-
 def main(arguments):
-    auth_request = build_auth_request()
-    access_token = get_access_token(auth_request)
+    access_token = get_access_token()
     post_id = parse_post_id(arguments.url)
-
-    request = build_request(post_id, access_token)
-    response = urllib.request.urlopen(request).read().decode('utf-8')
+    response = get_response(post_id, access_token)
     json_data = json.loads(response)
     pictures = get_pictures(json_data)
-    save_pictures(pictures)
+
+    iteration = 0
+    print_progress_bar(iteration, len(pictures))
+    for progress in save_pictures(pictures, arguments.directory):
+        iteration += 1
+        print_progress_bar(iteration, len(pictures))
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser('Fetch images from vk publication')
-    parser.add_argument('url', help='publication url')
+    parser.add_argument('url', help='Publication url. Example: https://vk.com/wallNUMBER1_NUMBER2.')
+    parser.add_argument('--directory', default='Images', help='Directory to save images to.')
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = parse_arguments()
-    main(args)
+    try:
+        main(args)
+    except KeyboardInterrupt:
+        pass
