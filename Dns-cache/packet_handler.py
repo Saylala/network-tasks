@@ -58,6 +58,7 @@ class Packet:
         self.query_name = self.get_query_name()
         self.query_type = self.get_query_type()
         self.records = self.get_records()
+        self.key = self.query_name + self.query_type.encode()
 
     def get_query_name(self):
         position = self.data[12:].find(b'\x00') + 1

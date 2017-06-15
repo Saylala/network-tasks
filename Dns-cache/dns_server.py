@@ -44,10 +44,11 @@ class Server:
 
     def handle_request(self, request, client):
         packet = Packet(request)
-        data = self.search_cache(packet.query_name, request)
+        key = packet.key
+        data = self.search_cache(key, request)
         source = 'cache'
         if data is None:
-            data = self.ask_forwarder(packet.query_name, request)
+            data = self.ask_forwarder(key, request)
             source = 'forwarder'
 
         if data is None:
